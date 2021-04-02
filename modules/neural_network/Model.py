@@ -1,14 +1,29 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[2]:
 
 
 import numpy as np
+
+
+# In[ ]:
+
+
 from Layers import Layer, InputLayer
 from Exceptions import ModelException
 from Optimizers import Optimizer
 from Loss import Loss
+
+
+# In[ ]:
+
+
+def batch(X, batch_size=1):
+    if len(X.shape) == 2:
+        X = X[:batch_size * (X.shape[0] // batch_size)]
+        return np.reshape(X, (X.shape[0] // batch_size, batch_size, X.shape[1]))
+    return X
 
 
 # In[2]:
@@ -87,23 +102,33 @@ class Sequential():
         self.compiled = True
         pass
     
-    def fit(self, X_train, y_train, verbose=False):
+    def fit(self, X_train, y_train, batch_size=10, verbose=False):
         if not self.compiled:
             raise ModelException("Unable to fit: Model not compiled.")
         history = []
+        if len(y_train.shape) == 1:
+            # Преобразуем данные в двумерный массив
+            y_train = y_train.reshape((-1, 1))
+        X = batch(X_train, batch_size=batch_size)
+        Y = batch(y_train, batch_size=batch_size)
+        indexes = np.array(range(len(X)))
         for epoch in self.optimizer:
-            # SGD: Выбираем случайный индекс
-            idx = np.random.randint(len(X_train))
-            #idx = range(len(X))
-            # Forward pass
-            y_pred = self.predict(X_train[idx])
-            history.append(self.loss.f([y_train[idx]], y_pred))
-            # Backprop
-            dX = self.loss.grad([y_train[idx]], y_pred)
-            for layer in self.layer_stack[::-1]:
-                if isinstance(layer, InputLayer):
-                    continue
-                dX = self.optimizer.step_backprop(dX, layer)
+            np.random.shuffle(indexes)
+            for idx in indexes:
+                for x_, y_ in zip(X[idx], Y[idx]):
+                    x = x_.reshape((1, -1))
+                    y = y_.reshape((1, -1))
+                    # Forward pass
+                    y_pred = self.predict(x)
+                    # Backprop
+                    dX = self.loss.grad(y, y_pred)
+                    for layer in self.layer_stack[::-1]:
+                        if isinstance(layer, InputLayer):
+                            continue
+                        dX = self.optimizer.step_backprop(dX, layer)
+            y_pred = self.predict(X_train)
+            loss = np.sum(self.loss.f(y_train, y_pred)) / len(y_train)
+            history.append(loss)
         return np.array(history)
     
     def predict(self, X_test):

@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# Ограничим максимальные значения, получаемые в экспоненте, 1e7
+
+# In[ ]:
 
 
 import numpy as np
@@ -15,7 +17,8 @@ def H(z, eps=1e-12):
     return np.where(z > -eps, 1, 0)
 
 def sigmoid(z, a=1, eps=1e-12):
-    divisor = 1. + np.exp(-a * z)
+    ex = np.exp(-a * z)
+    divisor = 1. + np.where(ex > 1e7, 1e7, ex)
     divisor = np.where(divisor == 0, divisor + eps, divisor)
     return 1. / divisor
 
@@ -108,7 +111,9 @@ class HypTangens(Activation):
     
     def f(self, z, *args, **kwargs):
         ex_z = np.exp(z / self.a)
+        ex_z = np.where(ex_z > 1e7, 1e7, ex_z)
         ex_minus_z = np.exp(-z / self.a)
+        ex_minus_z = np.where(ex_minus_z > 1e7, 1e7, ex_minus_z)
         divisor = ex_z + ex_minus_z
         divisor = np.where(divisor == 0, divisor + self.eps, divisor)
         return (ex_z - ex_minus_z) / divisor
@@ -259,7 +264,9 @@ class ELU(Activation):
         pass
     
     def f(self, z, *args, **kwargs):
-        return np.where(z < self.eps, self.a * (np.exp(z) - 1.), z)
+        ez = np.exp(z)
+        ez = np.where(ez > 1e7, 1e7, ez)
+        return np.where(z < self.eps, self.a * (ez - 1.), z)
     
     def grad(self, z, *args, **kwargs):
         return np.where(z < self.eps, self.f(z) + self.a, 1)
@@ -284,10 +291,14 @@ class SELU(Activation):
         pass
     
     def f(self, z, *args, **kwargs):
-        return self.lambd * np.where(z < self.eps, self.a * (np.exp(z) - 1.), z)
+        ez = np.exp(z)
+        ez = np.where(ez > 1e7, 1e7, ez)
+        return self.lambd * np.where(z < self.eps, self.a * (ez - 1.), z)
     
     def grad(self, z, *args, **kwargs):
-        return self.lambd * np.where(z < self.eps, self.a * np.exp(z), 1)
+        ez = np.exp(z)
+        ez = np.where(ez > 1e7, 1e7, ez)
+        return self.lambd * np.where(z < self.eps, self.a * ez, 1)
 
 
 # In[14]:
@@ -411,7 +422,9 @@ class SoftPlus(Activation):
         pass
     
     def f(self, z, *args, **kwargs):
-        return np.log(1 + np.exp(z))
+        ez = np.exp(z)
+        ez = np.where(ez > 1e7, 1e7, ez)
+        return np.log(1 + ez)
     
     def grad(self, z, *args, **kwargs):
         divisor = 1. + np.exp(-z)
@@ -488,7 +501,9 @@ class SoftExponential(Activation):
         if self.a > self.eps:
             return - (np.log(1. - self.a * (z + self.a))) / self.a
         elif self.a < -self.eps:
-            return (np.exp(self.a * z) - 1) / self.a + self.a
+            ez = np.exp(self.a * z)
+            ez = np.where(ez > 1e7, 1e7, ez)
+            return (ez - 1) / self.a + self.a
         return z
     
     def grad(self, z, *args, **kwargs):
@@ -556,7 +571,9 @@ class Gauss(Activation):
         pass
     
     def f(self, z, *args, **kwargs):
-        return np.exp(-z * z)
+        ez = np.exp(-z * z)
+        ez = np.where(ez > 1e7, 1e7, ez)
+        return ez
     
     def grad(self, z, *args, **kwargs):
         return -2. * z * np.exp(-z * z)
@@ -583,9 +600,11 @@ class Softmax(Activation):
         pass
     
     def f(self, z, *args, **kwargs):
-        divisor = np.sum(np.exp(z))
+        ez = np.exp(z)
+        ez = np.where(ez > 1e7, 1e7, ez)
+        divisor = np.sum(ez)
         divisor = np.where(divisor == 0, divisor + self.eps, divisor)
-        return np.exp(z) / divisor
+        return ez / divisor
     
     def grad(self, z, *args, **kwargs):
         J = np.zeros((z.shape[0], z.shape[1], z.shape[1]))
