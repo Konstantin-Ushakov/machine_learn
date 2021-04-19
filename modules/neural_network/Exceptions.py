@@ -40,3 +40,11 @@ class LossException(Exception):
     def __init__(self, arg):
         self.strerror = 'LossException: ' + arg
 
+
+# In[5]:
+
+
+class OptimizerException(Exception):
+    def __init__(self, arg):
+        self.strerror = 'OptimizerException: ' + arg
+

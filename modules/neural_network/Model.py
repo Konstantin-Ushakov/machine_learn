@@ -1,13 +1,14 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[2]:
+# In[1]:
 
 
 import numpy as np
+from sklearn.model_selection import train_test_split
 
 
-# In[ ]:
+# In[2]:
 
 
 from Layers import Layer, InputLayer
@@ -16,7 +17,14 @@ from Optimizers import Optimizer
 from Loss import Loss
 
 
-# In[ ]:
+# In[3]:
+
+
+model_names = {
+}
+
+
+# In[4]:
 
 
 def batch(X, batch_size=1):
@@ -26,42 +34,39 @@ def batch(X, batch_size=1):
     return X
 
 
-# In[2]:
+# In[5]:
 
 
 class Sequential():
-    __slots__ = 'layer_stack', 'optimizer', 'compiled', 'name', 'loss'
+    __slots__ = 'layer_stack', 'optimizer', 'name', 'loss', 'eps'
     
-    def __init__(self, name='Model'):
+    def __init__(self, name='Model', eps=1e-10):
+        self.eps = eps
         self.layer_stack = []
-        self.compiled = False
-        self.name = name
+        self.init_free_name(name)
         pass
+    
+    def init_free_name(self, name):
+        num = model_names.get(name, 0)
+        self.name = name + '_{}'.format(num)
+        model_names[name] = num + 1
+        return self.name
     
     def add(self, layer):
         '''
         Добавления слоя в модель
+        слой должен наследовать Layer
         '''
         if not issubclass(type(layer), Layer):
-            raise ModelException('Expected Layer, passed {}.'.format(layer))
+            raise ModelException('Expect Layer, passed {}.'.format(layer))
         if not self.layer_stack:
-            if layer.input_shape is None:
-                raise ModelException('First layer of model must be defined on {}.'.format(layer))
-            self.layer_stack.append(layer)
+            if not issubclass(type(layer), InputLayer):
+                raise ModelException('Expect InputLayer, passed {}'.format(layer))
         else:
-            if layer.input_shape is not None:
-                if layer.input_shape != self.layer_stack[-1].output_shape:
-                    raise ModelException("Can't add layer. Last shape layers was {}, trying to add layer with shape {}.".
-                                        format(self.layer_stack[-1].output_shape, layer.input_shape))
-                else:
-                    layer.build()
-                    self.layer_stack.append(layer)
-            else:
-                layer.build(new_input=self.layer_stack[-1].output_shape)
-                self.layer_stack.append(layer)
-                    
+            layer.build(input_size=self.layer_stack[-1].output_size)
+        self.layer_stack.append(layer)
         pass
-    
+        
     def summary(self):
         # PRINT
         print('+' + '-' * 26 + '-' + '-' * 18 + '-' + '-' * 18 + '+')
@@ -77,69 +82,60 @@ class Sequential():
         pass
     
     def compile(self, optimizer, loss):
-        self.compiled = False
         if not issubclass(type(optimizer), Optimizer):
-            raise ModelException('Unable to compile: expect Optimizer, get {}'.
-                                format(optimizer))
+            raise ModelException('Unable to compile: expect Optimizer, get {}'.format(optimizer))
         if not issubclass(type(loss), Loss):
-            raise ModelException('Unable to compile: expect Loss, get {}'.
-                                format(loss))
-        if not self.layer_stack:
-            raise ModelException('Unable to compile: no layers. Add layers with funtion model.add.')
-        if len(self.layer_stack) > 1:
-            for i in range(len(self.layer_stack) - 1):
-                if self.layer_stack[i].output_shape != self.layer_stack[i+1].input_shape:
-                    raise ModelException('Unable to compile: output share on {} is {} but input layer on {} is {}.'.
-                                        format(self.layer_stack.name, self.layer_stack.output_shape, 
-                                              self.layer_stack.name, self.layer_stack.input_shape))
-        try:
-            for layer in self:
-                layer.build()
-        except Exception as e:
-            raise ModelException('Unable to build layers on compile: {}', e.strerror)
+            raise ModelException('Unable to compile: expect Loss, get {}'.format(loss))
         self.optimizer = optimizer
         self.loss = loss
-        self.compiled = True
         pass
     
-    def fit(self, X_train, y_train, batch_size=10, verbose=False):
-        if not self.compiled:
-            raise ModelException("Unable to fit: Model not compiled.")
+    def fit(self, X_train, y_train, batch_size=10, verbose=False, n_verbose=10):
+        max_exp = 1. / self.eps
+        
+        if not self.optimizer or not self.loss:
+            raise ModelException('Unable to fit: Model not compiled.')
         history = []
         if len(y_train.shape) == 1:
             # Преобразуем данные в двумерный массив
             y_train = y_train.reshape((-1, 1))
-        X = batch(X_train, batch_size=batch_size)
-        Y = batch(y_train, batch_size=batch_size)
+        
+        X_tr, X_control, y_tr, y_control = train_test_split(X_train, y_train, stratify=y_train)
+        X = batch(X_tr, batch_size=batch_size)
+        Y = batch(y_tr, batch_size=batch_size)
         indexes = np.array(range(len(X)))
+        if verbose:
+            print('Start fit.')
         for epoch in self.optimizer:
             np.random.shuffle(indexes)
-            for idx in indexes:
-                for x_, y_ in zip(X[idx], Y[idx]):
-                    x = x_.reshape((1, -1))
-                    y = y_.reshape((1, -1))
-                    # Forward pass
-                    y_pred = self.predict(x)
-                    # Backprop
-                    dX = self.loss.grad(y, y_pred)
-                    for layer in self.layer_stack[::-1]:
-                        if isinstance(layer, InputLayer):
-                            continue
-                        dX = self.optimizer.step_backprop(dX, layer)
-            y_pred = self.predict(X_train)
-            loss = np.sum(self.loss.f(y_train, y_pred)) / len(y_train)
+            for num_iter, idx in enumerate(indexes):
+                x, y = X[idx], Y[idx]
+                # Forward pass
+                y_pred = self.predict(x)
+                # Backprop
+                # dX = np.sum(self.loss.grad(y, y_pred), axis=0)
+                dX = self.loss.grad(y, y_pred)
+                # Ограничиваем сверху и снизу
+                dX = np.where(np.abs(dX) > max_exp, np.sign(dX) * max_exp, dX)
+                n_obj = y.shape[0]
+                for layer in self.layer_stack[::-1]:
+                    if isinstance(layer, InputLayer):
+                        continue
+                    dX = self.optimizer(dX, layer, n_obj=n_obj)
+                if verbose and num_iter % n_verbose == 0:
+                    print('epoch\t{}\t|\titer\t{}\t/\t{}\t'.format(epoch, num_iter, len(X)), end='\r')
+            y_pred = self.predict(X_control)
+            loss = np.mean(self.loss.f(y_control, y_pred))
             history.append(loss)
+        if verbose:
+            print('    '*8, end='\r')
+            print('\rEnd fit.')
         return np.array(history)
     
     def predict(self, X_test):
-        y_pred = []
-        for x in X_test:
-            y_pred.append(x)
-            for layer in self.layer_stack:
-                y_pred[-1] = layer(y_pred[-1])
-        y_pred = np.array(y_pred)
-        if y_pred.shape[1] == 1:
-            y_pred = np.reshape(y_pred, (-1, y_pred.shape[-1]))
+        y_pred = X_test
+        for layer in self.layer_stack:
+            y_pred = layer(y_pred)
         return y_pred
     
     def __call__(self, X_test, *args, **kwargs):

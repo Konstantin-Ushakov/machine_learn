@@ -11,10 +11,24 @@ from Exceptions import LossException
 # In[2]:
 
 
-class Loss:
+class FuncLoss:
     def __init__(self):
         pass
+    
+    def f(self, y_true, y_pred):
+        pass
+    
+    def __call__(self, y_true, y_pred, *args, **kwargs):
+        return self.f(y_true, y_pred)
 
+
+# In[3]:
+
+
+class Loss(FuncLoss):
+    def __init__(self):
+        pass
+    
     def f(self, y_true, y_pred):
         pass
     
@@ -25,7 +39,7 @@ class Loss:
         return self.f(y_true, y_pred)
 
 
-# In[3]:
+# In[4]:
 
 
 # Classification
@@ -45,7 +59,7 @@ class CategoricalEntropy(Loss):
         return -y_true / (y_pred+self.eps)
 
 
-# In[4]:
+# In[5]:
 
 
 # Classification
@@ -67,7 +81,7 @@ class SparseCategoricalEntropy(Loss):
         return J
 
 
-# In[5]:
+# In[6]:
 
 
 class MSE(Loss):
@@ -87,7 +101,7 @@ class MSE(Loss):
         return 2 * (y_pred - y_true)
 
 
-# In[10]:
+# In[7]:
 
 
 class MAE(Loss):
@@ -109,7 +123,7 @@ class MAE(Loss):
         return -np.sign(y_pred)
 
 
-# In[13]:
+# In[8]:
 
 
 class SMAE(Loss):
@@ -138,7 +152,72 @@ class SMAE(Loss):
                        - np.sign(diff) * self.beta)
 
 
-# In[14]:
+# In[9]:
+
+
+class ZeroOne(FuncLoss):
+    '''
+    0-1 loss function
+    for classification
+    H(y_true, y_pred) = y_true == y_pred
+    H' undefined
+    '''
+    def __init__(self, eps=1e-7):
+        self.eps = eps
+        pass
+    
+    def f(self, y_true, y_pred):
+        return np.where(np.abs(y_true - y_pred) < self.eps, 1, 0)
+
+
+# In[10]:
+
+
+class SimpleLoss(Loss):
+    '''
+    Simple loss
+    H(y_true, y_pred) = y_true - y_pred
+    dH/dy_pred = -1
+    '''
+    def __init__(self, eps=1e-7):
+        self.eps = eps
+        pass
+    
+    def f(self, y_true, y_pred):
+        return y_true - y_pred
+    
+    def grad(self, y_true, y_pred):
+        return - np.ones_like(y_true)
+
+
+# In[11]:
+
+
+class LogLoss(Loss):
+    '''
+    log_loss
+    H(y_true, y_pred)  = - (y_true ln(y_pred) + (1 - y_true)ln(1 - y_pred))
+    dH/d_y_pred = (y_pred - y_true)/(y_pred-y_pred^2)
+    '''
+    def __init__(self, beta = 1e7, eps = 1e-7):
+        self.beta = beta
+        self.eps = eps
+        pass
+        
+    def f(self, y_true, y_pred):
+        y_pred = np.where(y_pred < self.eps, self.eps, y_pred)
+        y_pred = np.where(1. - y_pred < self.eps, 1. - self.eps, y_pred)
+        lg = np.log(y_pred)
+        lg1 = np.log(1. - y_pred)
+        return - (y_true * lg + (1. - y_true) * lg1)
+    
+    def grad(self, y_true, y_pred):
+        divisor = y_pred * (1 - y_pred)
+        divisor = np.where(np.abs(divisor) < self.eps, divisor + self.eps, divisor)
+        return (y_pred - y_true) / divisor
+
+
+# In[12]:
 
 
 loss_alias = {
@@ -147,19 +226,20 @@ loss_alias = {
     'mse': MSE(),
     'mae': MAE(),
     'smae': SMAE(),
+    'log_loss': LogLoss(),
 }
 
 
-# In[7]:
+# In[13]:
 
 
 def register_loss(alias, loss):
-    """
+    '''
         Добавляет alias: loss в словарь loss_alias
         :param alias: имя функции ошибки
         :param loss: объект ошибки
-    """
-    if not issubclass(loss, Loss):
-        raise LossException('{} must be inherit from {}.'.format(loss, Loss))
+    '''
+    if not issubclass(loss, FuncLoss):
+        raise LossException('{} must be inherit from {}.'.format(loss, FuncLoss))
     loss_alias[alias] = loss
 
