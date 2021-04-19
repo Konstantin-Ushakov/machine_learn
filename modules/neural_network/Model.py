@@ -90,7 +90,7 @@ class Sequential():
         self.loss = loss
         pass
     
-    def fit(self, X_train, y_train, batch_size=10, verbose=False, n_verbose=10):
+    def fit(self, X_train, y_train, batch_size=10, verbose=False, n_verbose=10, task="classification"):
         max_exp = 1. / self.eps
         
         if not self.optimizer or not self.loss:
@@ -99,8 +99,10 @@ class Sequential():
         if len(y_train.shape) == 1:
             # Преобразуем данные в двумерный массив
             y_train = y_train.reshape((-1, 1))
-        
-        X_tr, X_control, y_tr, y_control = train_test_split(X_train, y_train, stratify=y_train)
+        stratify = None
+        if task != "classification":
+            stratify = y_train
+        X_tr, X_control, y_tr, y_control = train_test_split(X_train, y_train, stratify=stratify)
         X = batch(X_tr, batch_size=batch_size)
         Y = batch(y_tr, batch_size=batch_size)
         indexes = np.array(range(len(X)))
