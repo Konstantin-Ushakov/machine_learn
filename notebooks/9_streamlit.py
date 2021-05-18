@@ -14,7 +14,9 @@ from sklearn.linear_model import ElasticNet
 import pickle
 
 
-# Разделим данные на обучение и тест, нормализуем их
+# Проведем предобработку данных.
+# 
+# Разделим данные на обучение и тест, нормализуем их.
 
 # In[2]:
 
@@ -48,6 +50,8 @@ def prepared_dataset(df, random_state=None):
 
 # # Обучение алгоритмов
 
+# Метод <code>trainee_model</code> обучает модель с гиперпараметрами
+
 # In[3]:
 
 
@@ -63,6 +67,8 @@ def trainee_model(X_train, y_train, parameters={
     return classifier_EN
 
 
+# Метод <code>process_prediction</code> выдает метрики качества для модели
+
 # In[4]:
 
 
@@ -77,7 +83,9 @@ def process_prediction(model, X_test, y_test):
 
 # # Сериализация модели
 
-# ## Pickle
+# # Pickle [docs](https://docs.python.org/3/library/pickle.html)
+
+# Сериализация в байтовое представление
 
 # In[5]:
 
@@ -99,13 +107,13 @@ def serialize_model_file(model, filename="ser.dat"):
         pickle.dump(model, fin)
     return filename
 
-def deserialize_model(filename="ser.dat"):
+def deserialize_model_file(filename="ser.dat"):
     with open(filename, 'rb') as fout:
         model = pickle.load(fout)
     return model
 
 
-# # [STREAMLIT](https://www.notion.so/a53e9e35dc4f482f889e2a3f516be9fd)
+# # [STREAMLIT статья](https://www.notion.so/a53e9e35dc4f482f889e2a3f516be9fd) [docs](https://docs.streamlit.io/en/stable/)
 
 # In[7]:
 
@@ -236,7 +244,7 @@ def main():
         df = load_data('../data/automobile_preprocessed.csv')
         alpha = st.slider('Select param alpha', min_value=0.1, max_value=3.0, value=1.0, step=0.1, key='alpha')
         fit_intercept = st.selectbox('Select fit intercept', [True, False], key='is_fit_intercept')
-        max_iter = st.slider('Select param alpha', min_value=1, max_value=50, value=1, step=1, key='max_iter')
+        max_iter = st.slider('Select param max_iter', min_value=1, max_value=50, value=1, step=1, key='max_iter')
         positive = st.selectbox('Select is all params are positive', [True, False], key='is_positive')
         
         parameters = {
@@ -248,6 +256,11 @@ def main():
         X_train, y_train, X_test, y_test = prepared_dataset(df)
         
         model = trainee_model(X_train, y_train, parameters)
+        # Сериализация модели
+        model_bytes = serialize_model(model)
+        
+        # Десериализация модели
+        model_deser = deserialize_model(model_bytes)
         process_prediction(model, X_test, y_test)
 
 
