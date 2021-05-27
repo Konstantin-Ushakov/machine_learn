@@ -1,7 +1,11 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[6]:
+# # Деплой в Heroku
+# 
+# https://test-ml-1.herokuapp.com/
+
+# In[ ]:
 
 
 import pandas as pd
@@ -23,6 +27,8 @@ from keras.layers import Dense, InputLayer
 from keras.models import Sequential
 from keras.activations import *
 
+
+# # Предобработка данных
 
 # Проведем предобработку данных.
 # 
@@ -170,6 +176,8 @@ def deserialize_model_file(filename="ser.dat"):
 
 
 # # [STREAMLIT статья](https://www.notion.so/a53e9e35dc4f482f889e2a3f516be9fd) [docs](https://docs.streamlit.io/en/stable/)
+
+# Загрузка данных из файла
 
 # In[53]:
 
@@ -347,12 +355,12 @@ def main():
             parameters['input_shape'] = input_shape
         model = trainee_model(X_train, y_train, model=model_type, parameters=parameters)
         if model_type != 'neural_network':
-            st.write(model)
             # Сериализация модели
             model_bytes = serialize_model(model)
             # Десериализация модели
             model_deser = deserialize_model(model_bytes)
         process_prediction(model, X_test, y_test)
+    st.write("By Konstantin Ushakov, 2021.")
 
 
 # In[13]:
@@ -360,10 +368,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-# In[ ]:
-
-
-
 
